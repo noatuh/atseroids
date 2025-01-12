@@ -51,19 +51,27 @@ class Player(pygame.sprite.Sprite):
     def __init__(self, x, y):
         super().__init__()
         # Represent the ship as a simple triangle
-        #   Apex is at (15, 0)
-        #   Other corners: (0, 30) and (30, 30)
+        #  Apex at (15, 0) => pointing up if angle=0
+        #  Base corners at (0, 30) and (30, 30)
         self.image = pygame.Surface((30, 30), pygame.SRCALPHA)
-        pygame.draw.polygon(self.image, WHITE, [(15, 0), (0, 30), (30, 30)])
+        pygame.draw.polygon(
+            self.image, 
+            WHITE, 
+            [(15, 0), (0, 30), (30, 30)]
+        )
         self.orig_image = self.image.copy()
         self.rect = self.image.get_rect(center=(x, y))
+
+        # Position and velocity
         self.position = pygame.Vector2(x, y)
         self.velocity = pygame.Vector2(0, 0)
-        # Angle 0 means pointing "up" (the triangle apex is at (15,0)).
+
+        # Angle 0 => facing "up"
         self.angle = 0
 
     def update(self, keys_pressed):
-        # Rotate left -> angle increases (CCW), Rotate right -> angle decreases (CW).
+        # Rotate left -> angle increases (CCW), 
+        # Rotate right -> angle decreases (CW).
         if keys_pressed[pygame.K_LEFT]:
             self.angle += ROTATION_SPEED
         if keys_pressed[pygame.K_RIGHT]:
@@ -72,7 +80,7 @@ class Player(pygame.sprite.Sprite):
         # Thrust forward
         if keys_pressed[pygame.K_UP]:
             rad_angle = math.radians(self.angle)
-            # Move in the direction of the triangle's apex (which is "up" at angle=0)
+            # (angle=0) => up, so we do cos(angle) for x, -sin(angle) for y
             self.velocity.x += math.cos(rad_angle) * PLAYER_SPEED
             self.velocity.y -= math.sin(rad_angle) * PLAYER_SPEED
 
@@ -83,24 +91,39 @@ class Player(pygame.sprite.Sprite):
         # Slight drag
         self.velocity *= 0.99
 
-        # Rotate the image
-        # pygame.transform.rotate(image, angle) rotates CCW for positive angle
+        # Rotate the image around its center
         self.image = pygame.transform.rotate(self.orig_image, self.angle)
         self.rect = self.image.get_rect(center=(int(self.position.x), int(self.position.y)))
 
     def shoot(self):
-        """Create a bullet from the player's current position and heading."""
+        """
+        Create a bullet from the ship's tip, 
+        oriented so angle=0 means "up."
+        """
+        # Convert self.angle (degrees) to radians
         rad_angle = math.radians(self.angle)
-        # Offset the bullet spawn point so it emerges from the ship's tip (apex).
-        # The apex is roughly 15px above the center in local coordinates.
-        # Feel free to tweak '15' to '20' or something else if you want it
-        # slightly further in front of the ship.
-        offset_distance = 15
-        offset_x = math.cos(rad_angle) * offset_distance
-        offset_y = -math.sin(rad_angle) * offset_distance
 
-        bullet_pos = (self.position.x + offset_x, self.position.y + offset_y)
-        bullet_vel = pygame.Vector2(math.cos(rad_angle), -math.sin(rad_angle)) * BULLET_SPEED
+        # We add 90 degrees (pi/2) so that angle=0 => bullet goes up.
+        bullet_angle = rad_angle + math.pi / 2
+
+        # Distance from ship's center to apex is ~15px 
+        # (ship surface is 30x30, apex at y=0, center ~ y=15)
+        offset_distance = 15
+
+        offset_x = math.cos(bullet_angle) * offset_distance
+        offset_y = -math.sin(bullet_angle) * offset_distance
+
+        bullet_pos = (
+            self.position.x + offset_x, 
+            self.position.y + offset_y
+        )
+
+        # Bullet velocity also uses bullet_angle
+        bullet_vel = pygame.Vector2(
+            math.cos(bullet_angle), 
+            -math.sin(bullet_angle)
+        ) * BULLET_SPEED
+
         return Bullet(bullet_pos, bullet_vel)
 
 class Bullet(pygame.sprite.Sprite):
@@ -108,7 +131,6 @@ class Bullet(pygame.sprite.Sprite):
         super().__init__()
         self.image = pygame.Surface((5, 5))
         self.image.fill(WHITE)
-        # Ensure rect coordinates are integers
         self.rect = self.image.get_rect(center=(int(pos[0]), int(pos[1])))
         self.position = pygame.Vector2(pos)
         self.velocity = vel
@@ -127,16 +149,17 @@ class Bullet(pygame.sprite.Sprite):
 class Asteroid(pygame.sprite.Sprite):
     def __init__(self, pos=None, size=ASTEROID_SIZE):
         super().__init__()
-        # Represent the asteroid as a circle
         self.size = size
         self.image = pygame.Surface((size, size), pygame.SRCALPHA)
-        pygame.draw.circle(self.image, WHITE, (size//2, size//2), size//2)
+        pygame.draw.circle(self.image, WHITE, (size // 2, size // 2), size // 2)
         self.rect = self.image.get_rect()
 
         if pos is None:
             # Random spawn location
-            self.position = pygame.Vector2(random.randrange(WIDTH),
-                                           random.randrange(HEIGHT))
+            self.position = pygame.Vector2(
+                random.randrange(WIDTH),
+                random.randrange(HEIGHT)
+            )
         else:
             self.position = pygame.Vector2(pos)
 
@@ -174,8 +197,10 @@ def main():
         clock.tick(FPS)
         screen.fill(BLACK)
 
-        # Event handling
+        # Get keyboard input
         keys_pressed = pygame.key.get_pressed()
+
+        # Process events
         for event in pygame.event.get():
             if event.type == pygame.QUIT or keys_pressed[pygame.K_ESCAPE]:
                 running = False
@@ -190,14 +215,14 @@ def main():
         bullets_group.update()
         asteroids_group.update()
 
-        # Collision detection between bullets and asteroids
+        # Check collisions: bullet vs asteroid
         for bullet in bullets_group:
             hit_asteroids = pygame.sprite.spritecollide(bullet, asteroids_group, True)
             if hit_asteroids:
                 bullet.kill()
                 # Optionally spawn smaller asteroids here
 
-        # Collision detection between player and asteroids
+        # Check collisions: ship vs asteroid
         if pygame.sprite.spritecollideany(player, asteroids_group):
             print("You were hit by an asteroid! Game Over.")
             running = False
