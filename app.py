@@ -44,6 +44,23 @@ def distance(pos1, pos2):
     """Euclidean distance between two points (x1, y1) and (x2, y2)."""
     return math.sqrt((pos1[0] - pos2[0])**2 + (pos1[1] - pos2[1])**2)
 
+def spawn_asteroid_off_camera():
+    side = random.choice(["top","bottom","left","right"])
+    buffer = 50
+    if side == "top":
+        x = random.randint(0, WIDTH)
+        y = -buffer
+    elif side == "bottom":
+        x = random.randint(0, WIDTH)
+        y = HEIGHT + buffer
+    elif side == "left":
+        x = -buffer
+        y = random.randint(0, HEIGHT)
+    else:
+        x = WIDTH + buffer
+        y = random.randint(0, HEIGHT)
+    return Asteroid((x, y))
+
 # ----------------------
 # Classes
 # ----------------------
@@ -216,11 +233,10 @@ def main():
         asteroids_group.update()
 
         # Check collisions: bullet vs asteroid
-        for bullet in bullets_group:
-            hit_asteroids = pygame.sprite.spritecollide(bullet, asteroids_group, True)
-            if hit_asteroids:
-                bullet.kill()
-                # Optionally spawn smaller asteroids here
+        collisions = pygame.sprite.groupcollide(asteroids_group, bullets_group, True, True)
+        if collisions:
+            for _ in collisions:
+                asteroids_group.add(spawn_asteroid_off_camera())
 
         # Check collisions: ship vs asteroid
         if pygame.sprite.spritecollideany(player, asteroids_group):
